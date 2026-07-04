@@ -12,12 +12,11 @@ import {
   getAwal,
 } from "@/lib/stock-data"
 
-const FIELDS: { key: keyof CalcEntry; label: string; hint: string; sign: "+" | "-" }[] = [
-  { key: "masuk", label: "Masuk", hint: "Stock in", sign: "+" },
-  { key: "free", label: "Free", hint: "Given free", sign: "-" },
-  { key: "jual", label: "Jual", hint: "Sold on spot", sign: "-" },
-  { key: "online", label: "Online", hint: "Sold online", sign: "-" },
-]
+const FIELD_KEYS: (keyof CalcEntry)[] = ["masuk", "free", "jual", "online"]
+
+function sanitizeDigits(value: string): string {
+  return value.replace(/[^0-9]/g, "")
+}
 
 type Props = {
   category: Category
@@ -25,39 +24,38 @@ type Props = {
   activeDate: string
   draft: Record<string, CalcEntry>
   onChange: (productId: string, field: keyof CalcEntry, value: string) => void
+  readOnly?: boolean
 }
 
-export function CalculatedTable({ category, records, activeDate, draft, onChange }: Props) {
+export function CalculatedTable({ category, records, activeDate, draft, onChange, readOnly }: Props) {
+  const freeLetter = (category.freeLabel ?? "Free").charAt(0).toUpperCase()
+  const letters: Record<keyof CalcEntry, string> = {
+    masuk: "+",
+    free: freeLetter,
+    jual: "J",
+    online: "O",
+  }
+
   return (
-    <Card>
-      <CardHeader>
+    <Card className="py-0 sm:py-6">
+      <CardHeader className="hidden sm:flex">
         <CardTitle className="text-base">{category.name}</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto rounded-lg border">
-          <Table>
+      <CardContent className="p-0 sm:p-6 sm:pt-0">
+        <p className="border-b bg-muted/40 px-2 py-1.5 text-xs font-semibold sm:hidden">{category.name}</p>
+        <div className="overflow-x-auto">
+          <Table className="text-[11px]">
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="min-w-40">Product</TableHead>
-                <TableHead className="text-center">
-                  Awal
-                  <span className="block text-xs font-normal text-muted-foreground">Opening</span>
+                <TableHead className="sticky left-0 z-10 w-24 min-w-24 border-r bg-muted/50 px-1.5 py-1.5 text-[11px] whitespace-normal">
+                  Product
                 </TableHead>
-                {FIELDS.map((f) => {
-                  const label = f.key === "free" ? (category.freeLabel ?? f.label) : f.label
-                  return (
-                    <TableHead key={f.key} className="text-center">
-                      {label}
-                      <span className="block text-xs font-normal text-muted-foreground">
-                        {f.sign} {f.hint}
-                      </span>
-                    </TableHead>
-                  )
-                })}
-                <TableHead className="text-center">
-                  Akhir
-                  <span className="block text-xs font-normal text-muted-foreground">Closing (auto)</span>
-                </TableHead>
+                {FIELD_KEYS.map((key) => (
+                  <TableHead key={key} className="w-10 px-0.5 py-1.5 text-center text-[11px]">
+                    {letters[key]}
+                  </TableHead>
+                ))}
+                <TableHead className="w-10 px-0.5 py-1.5 text-center text-[11px]">A</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -68,29 +66,28 @@ export function CalculatedTable({ category, records, activeDate, draft, onChange
                 const negative = akhir < 0
                 return (
                   <TableRow key={product.id}>
-                    <TableCell className="font-medium">{product.name}</TableCell>
-                    <TableCell className="text-center font-mono tabular-nums text-muted-foreground">
-                      {awal}
+                    <TableCell className="sticky left-0 z-10 w-24 min-w-24 border-r bg-background px-1.5 py-1 align-top whitespace-normal">
+                      <span className="block font-medium leading-tight">{product.name}</span>
+                      <span className="block text-[10px] leading-tight text-muted-foreground">Awal {awal}</span>
                     </TableCell>
-                    {FIELDS.map((f) => {
-                      const label = f.key === "free" ? (category.freeLabel ?? f.label) : f.label
-                      return (
-                        <TableCell key={f.key} className="p-2 text-center">
-                          <Input
-                            type="number"
-                            inputMode="numeric"
-                            min={0}
-                            value={entry[f.key] === 0 ? "" : entry[f.key]}
-                            placeholder="0"
-                            onChange={(e) => onChange(product.id, f.key, e.target.value)}
-                            className="mx-auto h-9 w-16 text-center font-mono tabular-nums"
-                            aria-label={`${product.name} ${label}`}
-                          />
-                        </TableCell>
-                      )
-                    })}
+                    {FIELD_KEYS.map((key) => (
+                      <TableCell key={key} className="w-10 p-0.5 text-center">
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={4}
+                          value={entry[key] === 0 ? "" : entry[key]}
+                          placeholder="0"
+                          onChange={(e) => onChange(product.id, key, sanitizeDigits(e.target.value))}
+                          disabled={readOnly}
+                          className="mx-auto h-8 w-10 min-w-0 px-1 text-center font-mono tabular-nums"
+                          aria-label={`${product.name} ${key}`}
+                        />
+                      </TableCell>
+                    ))}
                     <TableCell
-                      className={`text-center font-mono text-base font-semibold tabular-nums ${
+                      className={`w-10 p-0.5 text-center font-mono text-xs font-semibold tabular-nums ${
                         negative ? "text-destructive" : "text-foreground"
                       }`}
                     >

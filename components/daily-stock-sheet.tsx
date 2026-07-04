@@ -2,16 +2,25 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, Save, CalendarDays, History, User } from "lucide-react"
+import {
+  ChevronLeft,
+  ChevronRight,
+  Save,
+  CalendarDays,
+  History,
+  LayoutGrid,
+  LogOut,
+  Lock,
+  ShieldCheck,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { CalculatedTable } from "@/components/calculated-table"
 import { SimpleTable } from "@/components/simple-table"
 import { loadRecords, saveRecord } from "@/lib/storage"
+import { useCurrentUser } from "@/lib/use-current-user"
 import {
   CALC_PRODUCTS,
   CATEGORIES,
@@ -24,6 +33,14 @@ import {
   seedRecords,
   toISODate,
 } from "@/lib/stock-data"
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (err && typeof err === "object" && "message" in err && typeof (err as any).message === "string") {
+    return (err as any).message
+  }
+  return "Check your Supabase connection."
+}
 
 function buildCalcDraft(rec: DayRecord | undefined): Record<string, CalcEntry> {
   const base: Record<string, CalcEntry> = {}
@@ -38,6 +55,7 @@ function buildSimpleDraft(rec: DayRecord | undefined): Record<string, number> {
 }
 
 export function DailyStockSheet() {
+  const { displayName, isAdmin, loading: userLoading, signOut } = useCurrentUser()
   const today = useMemo(() => toISODate(new Date()), [])
   const [records, setRecords] = useState<Record<string, DayRecord>>(() => seedRecords(today))
   const [activeDate, setActiveDate] = useState(today)
@@ -46,7 +64,6 @@ export function DailyStockSheet() {
   const [simpleDraft, setSimpleDraft] = useState<Record<string, number>>(() =>
     buildSimpleDraft(seedRecords(today)[today]),
   )
-  const [staffDraft, setStaffDraft] = useState("")
   const [isSaving, setIsSaving] = useState(false)
 
   // Load every saved day record from Supabase after mount.
@@ -61,11 +78,11 @@ export function DailyStockSheet() {
         const rec = merged[today]
         setCalcDraft(buildCalcDraft(rec))
         setSimpleDraft(buildSimpleDraft(rec))
-        setStaffDraft(rec?.staff ?? "")
       } catch (err) {
         if (cancelled) return
+        console.error("[stock-book] loadRecords failed:", err)
         toast.error("Could not load stock history", {
-          description: err instanceof Error ? err.message : "Check your Supabase connection.",
+          description: getErrorMessage(err),
         })
       }
     }
@@ -79,7 +96,6 @@ export function DailyStockSheet() {
     const rec = records[date]
     setCalcDraft(buildCalcDraft(rec))
     setSimpleDraft(buildSimpleDraft(rec))
-    setStaffDraft(rec?.staff ?? "")
     setActiveDate(date)
   }
 
@@ -98,15 +114,9 @@ export function DailyStockSheet() {
   }
 
   async function handleSave() {
-    if (!staffDraft.trim()) {
-      toast.error("Nama Staff required", {
-        description: "Please fill in the staff name before saving.",
-      })
-      return
-    }
     const record: DayRecord = {
       date: activeDate,
-      staff: staffDraft.trim(),
+      staff: displayName || "Unknown",
       calc: calcDraft,
       simple: simpleDraft,
     }
@@ -118,8 +128,9 @@ export function DailyStockSheet() {
         description: `Closing stock for ${formatDate(activeDate)} has been recorded.`,
       })
     } catch (err) {
+      console.error("[stock-book] saveRecord failed:", err)
       toast.error("Could not save", {
-        description: err instanceof Error ? err.message : "Check your Supabase connection.",
+        description: getErrorMessage(err),
       })
     } finally {
       setIsSaving(false)
@@ -128,6 +139,10 @@ export function DailyStockSheet() {
 
   const isToday = activeDate === today
   const isFuture = activeDate > today
+  const isPast = !isToday && !isFuture
+  // Staff can only fill in today. Admins can also correct past days.
+  // Future days are never editable, for anyone.
+  const canEdit = !isFuture && (isToday || isAdmin)
 
   return (
     <div className="flex flex-col gap-6">
@@ -137,13 +152,13 @@ export function DailyStockSheet() {
             <div className="flex items-center gap-2">
               <CalendarDays className="size-5 text-muted-foreground" aria-hidden="true" />
               <div className="flex flex-col">
-                <CardTitle className="text-lg">{formatDate(activeDate)}</CardTitle>
-                <span className="text-sm text-muted-foreground">
+                <CardTitle className="text-base sm:text-lg">{formatDate(activeDate)}</CardTitle>
+                <span className="text-xs text-muted-foreground sm:text-sm">
                   {isToday ? "Today" : isFuture ? "Upcoming day" : "Past day"}
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <Button variant="outline" size="icon" onClick={() => goToDay(-1)} aria-label="Previous day">
                 <ChevronLeft />
               </Button>
@@ -159,35 +174,57 @@ export function DailyStockSheet() {
               >
                 <ChevronRight />
               </Button>
-              <Link href="/history" className={buttonVariants({ variant: "outline", size: "sm" })}>
-                <History data-icon="inline-start" />
-                History
+              <Link
+                href="/history"
+                className={buttonVariants({ variant: "outline", size: "icon" })}
+                aria-label="History"
+              >
+                <History />
               </Link>
+              <Link
+                href="/report"
+                className={buttonVariants({ variant: "outline", size: "icon" })}
+                aria-label="Weekly Report"
+              >
+                <LayoutGrid />
+              </Link>
+              {isAdmin ? (
+                <Link
+                  href="/logins"
+                  className={buttonVariants({ variant: "outline", size: "icon" })}
+                  aria-label="Sign-in History"
+                >
+                  <ShieldCheck />
+                </Link>
+              ) : null}
+              <Button variant="outline" size="icon" onClick={signOut} aria-label="Sign out">
+                <LogOut />
+              </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="grid gap-2 sm:max-w-xs">
-            <Label htmlFor="staff-name" className="flex items-center gap-1.5">
-              <User className="size-4 text-muted-foreground" aria-hidden="true" />
-              Nama Staff
-            </Label>
-            <Input
-              id="staff-name"
-              value={staffDraft}
-              onChange={(e) => setStaffDraft(e.target.value)}
-              placeholder="Enter your name"
-              disabled={isFuture}
-              autoComplete="name"
-            />
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+            <span>
+              Signed in as <span className="font-medium">{userLoading ? "…" : displayName}</span>
+              {isAdmin ? <span className="ml-1.5 text-xs text-muted-foreground">(admin)</span> : null}
+            </span>
           </div>
+
+          {isPast && !isAdmin ? (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+              <Lock className="size-4 shrink-0" aria-hidden="true" />
+              This day is locked. Only the owner can change past days — contact them if a correction is needed.
+            </div>
+          ) : null}
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground text-pretty">
+            <p className="text-xs text-muted-foreground text-pretty sm:text-sm">
               {
                 "Akhir = Awal + Masuk − Sample − Jual − Online. Staff fill the movement columns; Akhir is calculated to match against the physical count. Other Products just need today's count."
               }
             </p>
-            <Button onClick={handleSave} disabled={isFuture || isSaving} className="shrink-0">
+            <Button onClick={handleSave} disabled={!canEdit || isSaving} className="shrink-0">
               <Save data-icon="inline-start" />
               {isSaving ? "Saving…" : "Save closing stock"}
             </Button>
@@ -204,9 +241,16 @@ export function DailyStockSheet() {
             activeDate={activeDate}
             draft={calcDraft}
             onChange={updateCalc}
+            readOnly={!canEdit}
           />
         ) : (
-          <SimpleTable key={category.id} category={category} draft={simpleDraft} onChange={updateSimple} />
+          <SimpleTable
+            key={category.id}
+            category={category}
+            draft={simpleDraft}
+            onChange={updateSimple}
+            readOnly={!canEdit}
+          />
         ),
       )}
     </div>

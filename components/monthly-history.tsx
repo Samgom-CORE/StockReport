@@ -28,6 +28,14 @@ const CALC_FIELDS: { key: keyof CalcEntry; label: string }[] = [
   { key: "online", label: "Online" },
 ]
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message
+  if (err && typeof err === "object" && "message" in err && typeof (err as any).message === "string") {
+    return (err as any).message
+  }
+  return "Could not load history."
+}
+
 function monthLabel(monthKey: string): string {
   const [y, m] = monthKey.split("-").map(Number)
   return new Date(y, m - 1, 1).toLocaleDateString("en-GB", { month: "long", year: "numeric" })
@@ -125,7 +133,8 @@ export function MonthlyHistory() {
         setRecords(data)
       } catch (err) {
         if (cancelled) return
-        setError(err instanceof Error ? err.message : "Could not load history.")
+        console.error("[stock-book] loadRecords failed:", err)
+        setError(getErrorMessage(err))
       } finally {
         if (!cancelled) setLoaded(true)
       }
