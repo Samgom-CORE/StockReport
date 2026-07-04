@@ -17,6 +17,7 @@ export type CalcEntry = {
   free: number // given for free (-)
   jual: number // sold on the spot (-)
   online: number // sold online (-)
+  akhir: number // staff's physical count of closing stock (verified against the formula, never shown)
 }
 
 // A record for a single day.
@@ -36,15 +37,15 @@ export const CATEGORIES: Category[] = [
     products: [
       { id: "classic-tiramisu", name: "Classic Tiramisu" },
       { id: "tiramisu-zero", name: "Tiramisu Zero" },
+      { id: "peach-mango", name: "Peach Mango" },
+      { id: "so-strawberry", name: "So Strawberry" },
       { id: "chocolate-xoxo", name: "Chocolate XOXO" },
-      { id: "taro-black-rice", name: "Taro Black Rice" },
-      { id: "earl-grey", name: "Earl Grey" },
       { id: "black-forest", name: "Black Forest" },
+      { id: "earl-grey", name: "Earl Grey" },
       { id: "matcha-berry", name: "Matcha Berry" },
       { id: "rose-lychee", name: "Rose Lychee" },
       { id: "muscateers", name: "Muscateers" },
-      { id: "so-strawberry", name: "So Strawberry" },
-      { id: "peach-mango", name: "Peach Mango" },
+      { id: "taro-black-rice", name: "Taro Black Rice" },
     ],
   },
   {
@@ -55,8 +56,8 @@ export const CATEGORIES: Category[] = [
       { id: "classic-chocochip", name: "Classic Chocochip" },
       { id: "oreo-milk-choco", name: "Oreo and Milk Choco" },
       { id: "triple-choc-marshmallow", name: "Triple Choc Marshmallow" },
-      { id: "banana-toffee", name: "Banana Toffee" },
       { id: "oat-honey-raisins", name: "Oat Honey Raisins" },
+      { id: "banana-toffee", name: "Banana Toffee" },
       { id: "red-velvet-macadamia", name: "Red Velvet Macadamia" },
     ],
   },
@@ -78,12 +79,15 @@ export const CALC_PRODUCTS: Product[] = CATEGORIES.filter((c) => c.type === "cal
 export const SIMPLE_PRODUCTS: Product[] = CATEGORIES.filter((c) => c.type === "simple").flatMap((c) => c.products)
 
 // Closing stock formula: akhir = awal + masuk - free - jual - online
+// The "correct" closing stock, computed from the movement columns.
+// This is intentionally never shown to staff — it's only used to check
+// their physically-counted "akhir" input against reality.
 export function calcAkhir(awal: number, entry: CalcEntry): number {
   return awal + entry.masuk - entry.free - entry.jual - entry.online
 }
 
 export function emptyCalcEntry(): CalcEntry {
-  return { masuk: 0, free: 0, jual: 0, online: 0 }
+  return { masuk: 0, free: 0, jual: 0, online: 0, akhir: 0 }
 }
 
 // ISO date helpers (local time, no timezone surprises).

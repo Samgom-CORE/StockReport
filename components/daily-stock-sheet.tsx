@@ -28,8 +28,10 @@ import {
   type CalcEntry,
   type DayRecord,
   addDays,
+  calcAkhir,
   emptyCalcEntry,
   formatDate,
+  getAwal,
   seedRecords,
   toISODate,
 } from "@/lib/stock-data"
@@ -54,6 +56,18 @@ function buildSimpleDraft(rec: DayRecord | undefined): Record<string, number> {
   return base
 }
 
+// A product only shows green/red once its Akhir has actually been typed this
+// session (or was already saved with the new verification system). Records
+// saved before this feature existed won't have a stored akhir, so they start
+// untouched again — staff simply re-count once.
+function buildTouchedMap(rec: DayRecord | undefined): Record<string, boolean> {
+  const base: Record<string, boolean> = {}
+  for (const product of CALC_PRODUCTS) {
+    base[product.id] = typeof rec?.calc[product.id]?.akhir === "number"
+  }
+  return base
+}
+
 export function DailyStockSheet() {
   const { displayName, isAdmin, loading: userLoading, signOut } = useCurrentUser()
   const today = useMemo(() => toISODate(new Date()), [])
@@ -63,6 +77,9 @@ export function DailyStockSheet() {
   const [calcDraft, setCalcDraft] = useState<Record<string, CalcEntry>>(() => buildCalcDraft(seedRecords(today)[today]))
   const [simpleDraft, setSimpleDraft] = useState<Record<string, number>>(() =>
     buildSimpleDraft(seedRecords(today)[today]),
+  )
+  const [touchedAkhir, setTouchedAkhir] = useState<Record<string, boolean>>(() =>
+    buildTouchedMap(seedRecords(today)[today]),
   )
   const [isSaving, setIsSaving] = useState(false)
 
@@ -78,6 +95,7 @@ export function DailyStockSheet() {
         const rec = merged[today]
         setCalcDraft(buildCalcDraft(rec))
         setSimpleDraft(buildSimpleDraft(rec))
+        setTouchedAkhir(buildTouchedMap(rec))
       } catch (err) {
         if (cancelled) return
         console.error("[stock-book] loadRecords failed:", err)
@@ -96,6 +114,7 @@ export function DailyStockSheet() {
     const rec = records[date]
     setCalcDraft(buildCalcDraft(rec))
     setSimpleDraft(buildSimpleDraft(rec))
+    setTouchedAkhir(buildTouchedMap(rec))
     setActiveDate(date)
   }
 
@@ -106,6 +125,9 @@ export function DailyStockSheet() {
   function updateCalc(productId: string, field: keyof CalcEntry, value: string) {
     const num = Math.max(0, Number.parseInt(value, 10) || 0)
     setCalcDraft((prev) => ({ ...prev, [productId]: { ...prev[productId], [field]: num } }))
+    if (field === "akhir") {
+      setTouchedAkhir((prev) => ({ ...prev, [productId]: true }))
+    }
   }
 
   function updateSimple(productId: string, value: string) {
@@ -143,6 +165,15 @@ export function DailyStockSheet() {
   // Staff can only fill in today. Admins can also correct past days.
   // Future days are never editable, for anyone.
   const canEdit = !isFuture && (isToday || isAdmin)
+
+  // Every calculated product's physical count (Akhir) must match the hidden
+  // formula before saving is allowed.
+  const allAkhirCorrect = CALC_PRODUCTS.every((product) => {
+    const entry = calcDraft[product.id] ?? emptyCalcEntry()
+    const awal = getAwal(records, activeDate, product.id)
+    const expected = calcAkhir(awal, entry)
+    return touchedAkhir[product.id] === true && entry.akhir === expected
+  })
 
   return (
     <div className="flex flex-col gap-6">
@@ -221,10 +252,10 @@ export function DailyStockSheet() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-muted-foreground text-pretty sm:text-sm">
               {
-                "Akhir = Awal + Masuk − Sample − Jual − Online. Staff fill the movement columns; Akhir is calculated to match against the physical count. Other Products just need today's count."
+                "Count each product and type it under Akhir — it turns green when it matches, red when it doesn't. Save unlocks once every Akhir is green. Other Products just need today's count."
               }
             </p>
-            <Button onClick={handleSave} disabled={!canEdit || isSaving} className="shrink-0">
+            <Button onClick={handleSave} disabled={!canEdit || isSaving || !allAkhirCorrect} className="shrink-0">
               <Save data-icon="inline-start" />
               {isSaving ? "Saving…" : "Save closing stock"}
             </Button>
@@ -240,6 +271,7 @@ export function DailyStockSheet() {
             records={records}
             activeDate={activeDate}
             draft={calcDraft}
+            touchedAkhir={touchedAkhir}
             onChange={updateCalc}
             readOnly={!canEdit}
           />

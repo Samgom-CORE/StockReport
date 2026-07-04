@@ -23,17 +23,19 @@ type Props = {
   records: Record<string, DayRecord>
   activeDate: string
   draft: Record<string, CalcEntry>
+  touchedAkhir: Record<string, boolean>
   onChange: (productId: string, field: keyof CalcEntry, value: string) => void
   readOnly?: boolean
 }
 
-export function CalculatedTable({ category, records, activeDate, draft, onChange, readOnly }: Props) {
+export function CalculatedTable({ category, records, activeDate, draft, touchedAkhir, onChange, readOnly }: Props) {
   const freeLetter = (category.freeLabel ?? "Free").charAt(0).toUpperCase()
   const letters: Record<keyof CalcEntry, string> = {
     masuk: "+",
     free: freeLetter,
     jual: "J",
     online: "O",
+    akhir: "A",
   }
 
   return (
@@ -55,15 +57,24 @@ export function CalculatedTable({ category, records, activeDate, draft, onChange
                     {letters[key]}
                   </TableHead>
                 ))}
-                <TableHead className="w-10 px-0.5 py-1.5 text-center text-[11px]">A</TableHead>
+                <TableHead className="w-10 px-0.5 py-1.5 text-center text-[11px]">{letters.akhir}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {category.products.map((product) => {
                 const entry = draft[product.id] ?? emptyCalcEntry()
                 const awal = getAwal(records, activeDate, product.id)
-                const akhir = calcAkhir(awal, entry)
-                const negative = akhir < 0
+                const expected = calcAkhir(awal, entry)
+                const touched = touchedAkhir[product.id] === true
+                const isCorrect = touched && entry.akhir === expected
+                const isWrong = touched && entry.akhir !== expected
+
+                const akhirClasses = isCorrect
+                  ? "border-green-500 bg-green-50 text-green-800 focus-visible:ring-green-500/40 dark:bg-green-950/40 dark:text-green-300"
+                  : isWrong
+                    ? "border-red-500 bg-red-50 text-red-800 focus-visible:ring-red-500/40 dark:bg-red-950/40 dark:text-red-300"
+                    : ""
+
                 return (
                   <TableRow key={product.id}>
                     <TableCell className="sticky left-0 z-10 w-24 min-w-24 border-r bg-background px-1.5 py-1 align-top whitespace-normal">
@@ -86,12 +97,19 @@ export function CalculatedTable({ category, records, activeDate, draft, onChange
                         />
                       </TableCell>
                     ))}
-                    <TableCell
-                      className={`w-10 p-0.5 text-center font-mono text-xs font-semibold tabular-nums ${
-                        negative ? "text-destructive" : "text-foreground"
-                      }`}
-                    >
-                      {akhir}
+                    <TableCell className="w-10 p-0.5 text-center">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={4}
+                        value={entry.akhir === 0 && !touched ? "" : entry.akhir}
+                        placeholder="?"
+                        onChange={(e) => onChange(product.id, "akhir", sanitizeDigits(e.target.value))}
+                        disabled={readOnly}
+                        className={`mx-auto h-8 w-10 min-w-0 px-1 text-center font-mono font-semibold tabular-nums ${akhirClasses}`}
+                        aria-label={`${product.name} akhir (physical count)`}
+                      />
                     </TableCell>
                   </TableRow>
                 )
