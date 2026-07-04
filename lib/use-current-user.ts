@@ -28,11 +28,14 @@ export function useCurrentUser() {
       setUser(user)
 
       if (user) {
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("id, display_name, role")
           .eq("id", user.id)
           .single()
+        if (profileError) {
+          console.error("[stock-book] profile fetch failed:", profileError.message)
+        }
         if (!cancelled) setProfile((profileData as Profile) ?? null)
       }
       if (!cancelled) setLoading(false)

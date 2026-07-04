@@ -87,13 +87,21 @@ function CalcCategoryGrid({
             </th>
             {weekDates.map((date) => {
               const { weekday, num } = shortDay(date)
+              const staff = records[date]?.staff
               return (
                 <th
                   key={date}
                   colSpan={5}
                   className="border-b border-r px-1 py-1 text-center font-semibold last:border-r-0"
                 >
-                  {weekday} {num}
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span>
+                      {weekday} {num}
+                    </span>
+                    <span className="max-w-20 truncate text-[9px] font-normal text-muted-foreground">
+                      {staff || "—"}
+                    </span>
+                  </div>
                 </th>
               )
             })}
@@ -181,9 +189,17 @@ function SimpleCategoryGrid({
             </th>
             {weekDates.map((date) => {
               const { weekday, num } = shortDay(date)
+              const staff = records[date]?.staff
               return (
-                <th key={date} className="w-10 border-b border-r px-1 py-1 text-center font-semibold last:border-r-0">
-                  {weekday} {num}
+                <th key={date} className="w-14 border-b border-r px-1 py-1 text-center font-semibold last:border-r-0">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span>
+                      {weekday} {num}
+                    </span>
+                    <span className="max-w-14 truncate text-[9px] font-normal text-muted-foreground">
+                      {staff || "—"}
+                    </span>
+                  </div>
                 </th>
               )
             })}
@@ -199,7 +215,7 @@ function SimpleCategoryGrid({
                 const rec = records[date]
                 const v = rec?.simple[product.id] ?? 0
                 return (
-                  <td key={date} className="w-10 border-r px-0.5 py-0.5 text-center font-mono tabular-nums last:border-r-0">
+                  <td key={date} className="w-14 border-r px-0.5 py-0.5 text-center font-mono tabular-nums last:border-r-0">
                     {v === 0 ? "" : v}
                   </td>
                 )
@@ -209,7 +225,7 @@ function SimpleCategoryGrid({
           <tr className="border-t-2 bg-muted/40 font-semibold">
             <td className="sticky left-0 z-10 border-r bg-muted/40 px-2 py-1">Total</td>
             {weekDates.map((date, di) => (
-              <td key={date} className="w-10 border-r px-0.5 py-1 text-center font-mono tabular-nums last:border-r-0">
+              <td key={date} className="w-14 border-r px-0.5 py-1 text-center font-mono tabular-nums last:border-r-0">
                 {totals[di] === 0 ? "" : totals[di]}
               </td>
             ))}
