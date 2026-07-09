@@ -32,7 +32,6 @@ import {
   emptyCalcEntry,
   formatDate,
   getAwal,
-  seedRecords,
   toISODate,
 } from "@/lib/stock-data"
 
@@ -71,16 +70,12 @@ function buildTouchedMap(rec: DayRecord | undefined): Record<string, boolean> {
 export function DailyStockSheet() {
   const { displayName, isAdmin, loading: userLoading, signOut } = useCurrentUser()
   const today = useMemo(() => toISODate(new Date()), [])
-  const [records, setRecords] = useState<Record<string, DayRecord>>(() => seedRecords(today))
+  const [records, setRecords] = useState<Record<string, DayRecord>>({})
   const [activeDate, setActiveDate] = useState(today)
 
-  const [calcDraft, setCalcDraft] = useState<Record<string, CalcEntry>>(() => buildCalcDraft(seedRecords(today)[today]))
-  const [simpleDraft, setSimpleDraft] = useState<Record<string, number>>(() =>
-    buildSimpleDraft(seedRecords(today)[today]),
-  )
-  const [touchedAkhir, setTouchedAkhir] = useState<Record<string, boolean>>(() =>
-    buildTouchedMap(seedRecords(today)[today]),
-  )
+  const [calcDraft, setCalcDraft] = useState<Record<string, CalcEntry>>(() => buildCalcDraft(undefined))
+  const [simpleDraft, setSimpleDraft] = useState<Record<string, number>>(() => buildSimpleDraft(undefined))
+  const [touchedAkhir, setTouchedAkhir] = useState<Record<string, boolean>>(() => buildTouchedMap(undefined))
   const [isSaving, setIsSaving] = useState(false)
 
   // Load every saved day record from Supabase after mount.
@@ -90,9 +85,8 @@ export function DailyStockSheet() {
       try {
         const saved = await loadRecords()
         if (cancelled) return
-        const merged = { ...seedRecords(today), ...saved }
-        setRecords(merged)
-        const rec = merged[today]
+        setRecords(saved)
+        const rec = saved[today]
         setCalcDraft(buildCalcDraft(rec))
         setSimpleDraft(buildSimpleDraft(rec))
         setTouchedAkhir(buildTouchedMap(rec))

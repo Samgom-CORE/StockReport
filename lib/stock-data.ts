@@ -37,15 +37,15 @@ export const CATEGORIES: Category[] = [
     products: [
       { id: "classic-tiramisu", name: "Classic Tiramisu" },
       { id: "tiramisu-zero", name: "Tiramisu Zero" },
-      { id: "peach-mango", name: "Peach Mango" },
-      { id: "so-strawberry", name: "So Strawberry" },
       { id: "chocolate-xoxo", name: "Chocolate XOXO" },
-      { id: "black-forest", name: "Black Forest" },
-      { id: "earl-grey", name: "Earl Grey" },
-      { id: "matcha-berry", name: "Matcha Berry" },
-      { id: "rose-lychee", name: "Rose Lychee" },
-      { id: "muscateers", name: "Muscateers" },
       { id: "taro-black-rice", name: "Taro Black Rice" },
+      { id: "earl-grey", name: "Earl Grey" },
+      { id: "black-forest", name: "Black Forest" },
+      { id: "matcha-berry", name: "Matcha Berry" },
+      { id: "rose-lychee", name: "Lychee Rose" },
+      { id: "muscateers", name: "Muscateers" },
+      { id: "so-strawberry", name: "So Strawberry" },
+      { id: "peach-mango", name: "Peach me Mango" },
     ],
   },
   {
@@ -53,12 +53,12 @@ export const CATEGORIES: Category[] = [
     name: "Soft Cookies",
     type: "calculated",
     products: [
-      { id: "classic-chocochip", name: "Classic Chocochip" },
-      { id: "oreo-milk-choco", name: "Oreo and Milk Choco" },
-      { id: "triple-choc-marshmallow", name: "Triple Choc Marshmallow" },
-      { id: "oat-honey-raisins", name: "Oat Honey Raisins" },
-      { id: "banana-toffee", name: "Banana Toffee" },
-      { id: "red-velvet-macadamia", name: "Red Velvet Macadamia" },
+      { id: "classic-chocochip", name: "Classic Co." },
+      { id: "oreo-milk-choco", name: "Oreo" },
+      { id: "triple-choc-marshmallow", name: "Mellow's" },
+      { id: "banana-toffee", name: "Banofee" },
+      { id: "oat-honey-raisins", name: "Raisin Oat" },
+      { id: "red-velvet-macadamia", name: "Nutty Red" },
     ],
   },
   {
@@ -116,36 +116,24 @@ export function formatDate(iso: string): string {
 }
 
 /**
- * Compute the opening stock (awal) for a calculated product on a given date by
- * walking back to the most recent saved day and applying its closing formula.
- * If there is no prior day, opening stock is 0.
+ * Compute the opening stock (awal) for a calculated product on a given date
+ * by replaying every saved day from the earliest known record up to (but not
+ * including) this date. A day with no saved record is treated as "no
+ * movement" — stock carries over unchanged — rather than resetting to 0.
+ * This means a single forgotten day never wipes out real stock history.
  */
 export function getAwal(records: Record<string, DayRecord>, date: string, productId: string): number {
-  const prevDate = addDays(date, -1)
-  const prev = records[prevDate]
-  if (!prev) return 0
-  const prevAwal = getAwal(records, prevDate, productId)
-  const prevEntry = prev.calc[productId] ?? emptyCalcEntry()
-  return calcAkhir(prevAwal, prevEntry)
+  const dates = Object.keys(records)
+  if (dates.length === 0) return 0
+  const earliest = dates.reduce((min, d) => (d < min ? d : min))
+
+  let awal = 0
+  let cursor = earliest
+  while (cursor < date) {
+    const entry = records[cursor]?.calc[productId] ?? emptyCalcEntry()
+    awal = calcAkhir(awal, entry)
+    cursor = addDays(cursor, 1)
+  }
+  return awal
 }
 
-/**
- * Seed data: gives the day before "today" a saved record so that today's
- * opening stock (awal) is pre-filled. Temporary in-memory data until a
- * database is connected.
- */
-export function seedRecords(today: string): Record<string, DayRecord> {
-  const yesterday = addDays(today, -1)
-  const calc: Record<string, CalcEntry> = {}
-  for (const product of CALC_PRODUCTS) {
-    // Seed a starting stock-in so its closing becomes today's opening.
-    calc[product.id] = { ...emptyCalcEntry(), masuk: 20 }
-  }
-  const simple: Record<string, number> = {}
-  for (const product of SIMPLE_PRODUCTS) {
-    simple[product.id] = 0
-  }
-  return {
-    [yesterday]: { date: yesterday, calc, simple },
-  }
-}
